@@ -19,6 +19,7 @@ fi
 source $HVM/platform.sh
 
 # configure paths
+#HAXEPATH=$HVM/versions/haxe/`echo $HAXE | tr '.' '_'`
 HAXEPATH=$HVM/versions/haxe/$HAXE
 export HAXE_STD_PATH=$HAXEPATH/std
 export HAXE_LIBRARY_PATH=$HAXEPATH/std
@@ -33,12 +34,27 @@ if [ ! -d "$HAXEPATH" ]; then
 	mkdir -p "$HVM/versions/haxe"
 
 	ARCHIVE="$HAXEPATH.tar.gz"
-	DOWNLOADS="http://haxe.org/website-content/downloads"
+	case $PLATFORM in
+		WIN* )
+			DOWNLOADS="https://github.com/HaxeFoundation/haxe/releases/download"
+		;;
+		* )
+			DOWNLOADS="http://haxe.org/website-content/downloads"
+		;;
+	esac
 
 	case $PLATFORM in
 		'OSX') URL="$DOWNLOADS/$HAXE/downloads/haxe-$HAXE-osx.tar.gz" ;;
 		'LINUX32') URL="$DOWNLOADS/$HAXE/downloads/haxe-$HAXE-linux32.tar.gz" ;;
 		'LINUX64') URL="$DOWNLOADS/$HAXE/downloads/haxe-$HAXE-linux64.tar.gz" ;;
+		'WIN32') URL="$DOWNLOADS/$HAXE/haxe-$HAXE-win.zip" ;;
+		'WIN64') 
+			if [[ "$HAXE" < "3.4.4" ]]; then
+				URL="$DOWNLOADS/$HAXE/haxe-$HAXE-win.zip"
+			else
+				URL="$DOWNLOADS/$HAXE/haxe-$HAXE-win64.zip"
+			fi
+		;;
 	esac
 
 
@@ -47,15 +63,35 @@ if [ ! -d "$HAXEPATH" ]; then
 			'OSX') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/haxe/mac/haxe_latest.tar.gz" ;;
 			'LINUX32') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/haxe/linux32/haxe_latest.tar.gz" ;;
 			'LINUX64') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/haxe/linux64/haxe_latest.tar.gz" ;;
+			'WIN32') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/haxe/windows/haxe_latest.zip" ;;
+			'WIN64') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/haxe/windows64/haxe_latest.zip" ;;
 		esac
 
 	fi
 
 	echo "downloading $URL"
-	curl "$URL" -o "$ARCHIVE" -# -L
+	case $PLATFORM in
+		WIN* )
+			wget -O "$ARCHIVE" "$URL"
+		;;
+		* )
+			curl "$URL" -o "$ARCHIVE" -# -L
+		;;
+	esac
 	mkdir -p "$HAXEPATH"
 
-	tar -xzf "$ARCHIVE" -C "$HAXEPATH" --strip-components=1
+	case $PLATFORM in
+		WIN* )
+			unzip "$ARCHIVE" -d "$HAXEPATH"
+			mv "$HAXEPATH"/*/* "$HAXEPATH"/
+			mkdir "$HAXEPATH"/dlls
+			mv "$HAXEPATH"/*.dll "$HAXEPATH"/dlls/ # workaround!
+			chmod +x "$HAXEPATH"/*.exe
+		;;
+		* )
+			tar -xzf "$ARCHIVE" -C "$HAXEPATH" --strip-components=1
+		;;
+	esac
 	rm "$ARCHIVE"
 fi
 
@@ -69,6 +105,8 @@ if [ ! -d "$NEKOPATH" ]; then
 		'OSX') URL="http://nekovm.org/_media/neko-$NEKO-osx64.tar.gz?id=download&cache=cache" ;;
 		'LINUX32') URL="http://nekovm.org/_media/neko-$NEKO-linux.tar.gz?id=download&cache=cache" ;;
 		'LINUX64') URL="http://nekovm.org/_media/neko-$NEKO-linux64.tar.gz?id=download&cache=cache" ;;
+		'WIN32') URL="http://nekovm.org/_media/neko-$NEKO-win.zip?id=download&cache=cache" ;;
+		'WIN64') URL="http://nekovm.org/_media/neko-$NEKO-win64.zip?id=download&cache=cache" ;;
 	esac
 
 	if [ "$NEKO" == "dev" ]; then
@@ -76,18 +114,35 @@ if [ ! -d "$NEKOPATH" ]; then
 			'OSX') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/neko/mac/neko_latest.tar.gz" ;;
 			'LINUX32') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/neko/linux32/neko_latest.tar.gz" ;;
 			'LINUX64') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/neko/linux64/neko_latest.tar.gz" ;;
+			'WIN32') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/neko/windows/neko_latest.zip" ;;
+			'WIN64') URL="http://hxbuilds.s3-website-us-east-1.amazonaws.com/builds/neko/windows64/neko_latest.zip" ;;
 		esac
 	fi
 
 	echo "downloading $URL"
-	curl "$URL" -o "$ARCHIVE" -# -L
+	case $PLATFORM in
+		WIN* )
+			wget -O "$ARCHIVE" "$URL"
+		;;
+		* )
+			curl "$URL" -o "$ARCHIVE" -# -L
+		;;
+	esac
 	mkdir -p "$NEKOPATH"
 
-	if [ "$NEKO" == "dev" ]; then
-		tar -xzf "$ARCHIVE" -C "$NEKOPATH" --strip-components=2
-	else
-		tar -xzf "$ARCHIVE" -C "$NEKOPATH" --strip-components=1
-	fi
+	case $PLATFORM in
+		WIN* )
+			unzip "$ARCHIVE" -d "$NEKOPATH"
+			mv "$NEKOPATH"/*/* "$NEKOPATH"/
+		;;
+		* )
+			if [ "$NEKO" == "dev" ]; then
+				tar -xzf "$ARCHIVE" -C "$NEKOPATH" --strip-components=2
+			else
+				tar -xzf "$ARCHIVE" -C "$NEKOPATH" --strip-components=1
+			fi
+		;;
+	esac
 	rm "$ARCHIVE"
 fi
 
@@ -104,7 +159,14 @@ if [ ! -d "$HAXELIBPATH" ]; then
 	fi
 
 	echo "downloading $URL"
-	curl "$URL" -o "$ARCHIVE" -# -L
+	case $PLATFORM in
+		WIN* )
+			wget -O "$ARCHIVE" "$URL"
+		;;
+		* )
+			curl "$URL" -o "$ARCHIVE" -# -L
+		;;
+	esac
 
 	unzip -qq "$ARCHIVE" -d "$HAXELIBPATH"
 	rm "$ARCHIVE"

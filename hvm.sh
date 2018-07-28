@@ -20,12 +20,21 @@ fi
 
 # source local versions if they exist
 if [ -e .hvmrc ]; then
-	source .hvmrc
+	#pwd
+	#source .hvmrc
+	source `pwd`/.hvmrc # workaround
 fi
 
 hvm_get_haxe_versions() {
 	HAXE_VERSIONS=()
-	local VERSIONS=`curl --silent -L http://haxe.org/download/list 2>&1 | grep -oE 'version\/[^/]+' | cut -d / -f 2 | awk '!a[$0]++'`
+	case $PLATFORM in
+		WIN* )
+			local VERSIONS=`wget -q -O- http://haxe.org/download/list | grep -oE 'version\/[^/]+' | cut -d / -f 2 | awk '!a[$0]++'`
+		;;
+		* )
+			local VERSIONS=`curl --silent -L http://haxe.org/download/list 2>&1 | grep -oE 'version\/[^/]+' | cut -d / -f 2 | awk '!a[$0]++'`
+		;;
+	esac
 	for VERSION in $VERSIONS; do
 		HAXE_VERSIONS+=($VERSION)
 	done
@@ -35,7 +44,14 @@ hvm_get_haxelib_versions() {
 	local VERSIONS=()
 	local REGEX=">([0-9\.rc\-]*)<"
 	# https://www.youtube.com/watch?v=w3PoTnkLfxE
-	local HREFS=$( curl --silent -L http://lib.haxe.org/p/haxelib_client/versions/ 2>&1 | grep "/\" class=\"text" )
+	case $PLATFORM in
+		WIN* )
+			local HREFS=$( wget -q -O- http://lib.haxe.org/p/haxelib_client/versions/ | grep "/\" class=\"text" )
+		;;
+		* )
+			local HREFS=$( curl --silent -L http://lib.haxe.org/p/haxelib_client/versions/ 2>&1 | grep "/\" class=\"text" )
+		;;
+	esac
 	for HREF in $HREFS; do
 		if [[ $HREF =~ $REGEX ]]; then
 			VERSIONS+=("${BASH_REMATCH[1]}")
@@ -48,7 +64,7 @@ hvm_get_haxelib_versions() {
 }
 
 hvm_get_neko_versions() {
-	NEKO_VERSIONS=("1.8.1" "1.8.2" "2.0.0")
+	NEKO_VERSIONS=("1.8.1" "1.8.2" "2.0.0" "2.1.0" "2.2.0")
 }
 
 hvm_valid_version() {
@@ -109,6 +125,9 @@ hvm() {
 		esac
 	;;
 	"install" )
+		case $PLATFORM in
+			WIN* ) alias sudo="" ;;
+		esac
 		sudo ln -sf $HVM/haxe.sh $PREFIX/haxe
 		sudo ln -sf $HVM/haxelib.sh $PREFIX/haxelib
 		sudo ln -sf $HVM/neko.sh $PREFIX/neko
